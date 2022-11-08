@@ -93,7 +93,8 @@ np.random.seed(seed)
 
 # checks
 if model not in (
-        "gaussian", "beta", "gamma", "MA2", "AR2", "fullLorenz95",
+        "two_moons", "slcp", "gaussian_linear_uniform", "lotka_volterra",
+        "gaussian",     "beta", "gamma", "MA2", "AR2", "fullLorenz95",
         "fullLorenz95smaller") or technique not in (
         "SM", "SSM", "FP", "true"):
     raise NotImplementedError
@@ -109,6 +110,10 @@ if technique == "FP" and inference_technique == "exchange":
 print("{} model with {}.".format(model, technique))
 # set up the default root folder and other values
 default_root_folder = {"gaussian": "results/gaussian/",
+                       "two_moons": "results/two_moons/",
+                       "slcp": "results/slcp/",
+                       "gaussian_linear_uniform": "results/gaussian_linear_uniform/",
+                       "lotka_volterra": "results/lotka_volterra/",
                        "gamma": "results/gamma/",
                        "beta": "results/beta/",
                        "AR2": "results/AR2/",
@@ -164,6 +169,125 @@ if model == "gaussian":
     TrueSummariesComputation = TrueSummariesComputationGaussian
     extract_params_and_weights_from_journal = extract_params_and_weights_from_journal_gaussian
     extract_posterior_mean_from_journal = extract_posterior_mean_from_journal_gaussian
+
+if model == "two_moons":
+
+    lower_bounds = np.array([-1., -1.])
+    upper_bounds = np.array([1., 1.])
+
+    initial_theta_exchange_MCMC = np.array([0., 0.])
+    proposal_size_exchange_MCMC = 2 * np.array([1., 1.])
+    theta_dim = 2
+    param_names = [r"$\theta_1$", r"$\theta_2$"]
+
+    # generate some data for defining the weighted distances and the epsilon:
+    torch.manual_seed(seed)
+    from sbibm.tasks import get_task
+    task = get_task("two_moons")
+    p = task.get_prior()
+
+    theta_vect_test = p(1000)
+    samples_matrix_test = task.get_simulator()(theta_vect_test)
+
+    theta_vect_test = theta_vect_test.detach().numpy()
+    samples_matrix_test = samples_matrix_test.detach().numpy()
+
+
+    # define the functions that are needed:
+    TrueSummariesComputation = TrueSummariesComputationGaussian
+    extract_params_and_weights_from_journal = extract_params_and_weights_from_journal_gaussian
+    extract_posterior_mean_from_journal = extract_posterior_mean_from_journal_gaussian
+
+elif model == "slcp":
+
+    lower_bounds = np.array([-3., -3., -.3, -.3, -3.])
+    upper_bounds = np.array([3., 3., .3, .3, 3.])
+
+    initial_theta_exchange_MCMC = np.array([0., 0., 0., 0., 0.])
+    proposal_size_exchange_MCMC = 2 * np.array([0.1, 0.1, 0.1, 0.1, 0.1])
+    theta_dim = 5
+    param_names = [r"$\theta_1$", r"$\theta_2$", r"$\theta_3$", r"$\theta_4$", r"$\theta_5$"]
+
+    # generate some data for defining the weighted distances and the epsilon:
+    torch.manual_seed(seed)
+    from sbibm.tasks import get_task
+    task = get_task("slcp")
+    p = task.get_prior()
+
+    theta_vect_test = p(1000)
+    samples_matrix_test = task.get_simulator()(theta_vect_test)
+
+    theta_vect_test = theta_vect_test.detach().numpy()
+    samples_matrix_test = samples_matrix_test.detach().numpy()
+
+
+    # define the functions that are needed:
+    TrueSummariesComputation = TrueSummariesComputationGaussian
+    extract_params_and_weights_from_journal = extract_params_and_weights_from_journal_gaussian
+    extract_posterior_mean_from_journal = extract_posterior_mean_from_journal_gaussian
+
+elif model == "gaussian_linear_uniform":
+    lower_bounds = np.array([-1.] * 10)
+    upper_bounds = np.array([1.] * 10)
+
+    initial_theta_exchange_MCMC = np.array(10 * [0.])
+    proposal_size_exchange_MCMC = 2 * np.array(10 * [0.1])
+    theta_dim = 10
+    param_names = [rf"$\theta_{i}$" for i in range(1, 11)]
+
+    # generate some data for defining the weighted distances and the epsilon:
+    torch.manual_seed(seed)
+    from sbibm.tasks import get_task
+    task = get_task("gaussian_linear_uniform")
+    p = task.get_prior()
+
+    theta_vect_test = p(1000)
+    samples_matrix_test = task.get_simulator()(theta_vect_test)
+
+    theta_vect_test = theta_vect_test.detach().numpy()
+    samples_matrix_test = samples_matrix_test.detach().numpy()
+
+
+    # define the functions that are needed:
+    TrueSummariesComputation = TrueSummariesComputationGaussian
+    extract_params_and_weights_from_journal = extract_params_and_weights_from_journal_gaussian
+    extract_posterior_mean_from_journal = extract_posterior_mean_from_journal_gaussian
+
+elif model == "lotka_volterra":
+    lower_bounds = np.array([-0.,] * 4)
+    upper_bounds = None
+
+    initial_theta_exchange_MCMC = np.array([0.1] * 4)
+    proposal_size_exchange_MCMC = 2 * np.array([0.1] * 4)
+    theta_dim = 4
+    param_names = [r"$\theta_1$", r"$\theta_2$", r"$\theta_3$", r"$\theta_4$"]
+
+    datasets_folder = results_folder + 'observations' + '/'
+    theta_vect_test = np.load(datasets_folder + "theta_vect_test.npy", allow_pickle=True)
+    samples_matrix_test = np.load(datasets_folder + "samples_matrix_test.npy", allow_pickle=True)
+
+    theta_vect_test = theta_vect_test[:1000]
+    samples_matrix_test = samples_matrix_test[:1000]
+
+    # generate some data for defining the weighted distances and the epsilon:
+    # torch.manual_seed(seed)
+    # from sbibm.tasks import get_task
+    # task = get_task("two_moons")
+    # p = task.get_prior()
+
+
+    # theta_vect_test = p(1000)
+    # samples_matrix_test = task.get_simulator()(theta_vect_test)
+
+    # theta_vect_test = theta_vect_test.detach().numpy()
+    # samples_matrix_test = samples_matrix_test.detach().numpy()
+
+
+    # define the functions that are needed:
+    TrueSummariesComputation = TrueSummariesComputationGaussian
+    extract_params_and_weights_from_journal = extract_params_and_weights_from_journal_gaussian
+    extract_posterior_mean_from_journal = extract_posterior_mean_from_journal_gaussian
+
 
 elif model == "beta":
     alpha_bounds = [1, 3]
@@ -337,6 +461,55 @@ if model in ("beta", "gamma", "gaussian"):
     net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
     # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
 
+elif model == "two_moons":
+    nonlinearity = torch.nn.Softplus
+    # nonlinearity = torch.nn.Tanhshrink
+    # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_data_SM_architecture = createDefaultNNWithDerivatives(2, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
+    # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
+    net_theta_SM_architecture = createDefaultNN(2, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+                                                batch_norm_last_layer=batch_norm_last_layer,
+                                                affine_batch_norm=affine_batch_norm,
+                                                )
+    net_FP_architecture = createDefaultNN(10, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
+    # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
+
+elif model == "slcp":
+    nonlinearity = torch.nn.Softplus
+    # nonlinearity = torch.nn.Tanhshrink
+    # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_data_SM_architecture = createDefaultNNWithDerivatives(8, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
+    # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
+    net_theta_SM_architecture = createDefaultNN(5, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+                                                batch_norm_last_layer=batch_norm_last_layer,
+                                                affine_batch_norm=affine_batch_norm,
+                                                )
+    net_FP_architecture = createDefaultNN(8, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
+    # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
+
+elif model == "gaussian_linear_uniform":
+    nonlinearity = torch.nn.Softplus
+    # nonlinearity = torch.nn.Tanhshrink
+    # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_data_SM_architecture = createDefaultNNWithDerivatives(10, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
+    # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
+    net_theta_SM_architecture = createDefaultNN(10, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+                                                batch_norm_last_layer=batch_norm_last_layer,
+                                                affine_batch_norm=affine_batch_norm,
+                                                )
+    net_FP_architecture = createDefaultNN(8, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
+    # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
+
+
+
+
+
 elif model == "MA2":
     nonlinearity = torch.nn.Softplus
 
@@ -465,7 +638,7 @@ for obs_index in range(start_observation_index, n_observations):
     x_obs = np.load(observation_folder + "x_obs{}.npy".format(obs_index + 1))
     theta_obs = np.load(observation_folder + "theta_obs{}.npy".format(obs_index + 1))
     if true_posterior_available:
-        trace_true = np.load(observation_folder + "true_mcmc_trace{}.npy".format(obs_index + 1))
+        trace_true = np.load(observation_folder + "true_mcmc_trace{}.npy".format(obs_index + 1), allow_pickle=True)
         trace_true_subsample = subsample_trace(trace_true, size=min(subsample_size, n_samples))  # otherwise it
         # crashes if subsample_size>n_samples
         true_post_means = np.mean(trace_true, axis=0)

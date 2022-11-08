@@ -36,6 +36,8 @@ def train_net_batch_parser(default_root_folder, default_nets_folder=None, defaul
     parser.add_argument('--lr_data', type=float, default=default_lr_data, help='Learning rate for data')
     parser.add_argument('--lr_theta', type=float, default=default_lr_theta, help='Learning rate for theta')
     parser.add_argument('--batch_size', type=int, default=1000, help='Batch size (default 1000).')
+    parser.add_argument('--n_samples_training', type=int, default=10000, help='Number of training samples (default 10000).')
+    parser.add_argument('--n_samples_evaluation', type=int, default=10000, help='Number of evaluation samples (default 10000).')
     parser.add_argument('--no_early_stop', action="store_true")
     parser.add_argument('--update_batchnorm_running_means_before_eval', action="store_true")
     parser.add_argument('--bn_momentum', type=float, default=0.1, )

@@ -31,6 +31,10 @@ results_folder = args.root_folder
 
 default_root_folder = {"gaussian": "results/gaussian/",
                        "gamma": "results/gamma/",
+                       "two_moons": "results/two_moons/",
+                       "gaussian_linear_uniform": "results/gaussian_linear_uniform/",
+                       "lotka_volterra": "results/lotka_volterra/",
+                       "slcp": "results/slcp/",
                        "beta": "results/beta/",
                        "AR2": "results/AR2/",
                        "MA2": "results/MA2/",
@@ -48,7 +52,7 @@ if sleep_time > 0:
 
 n_samples_true_MCMC = 20000
 burnin_true_MCMC = 20000
-cores = 2
+cores = 1
 
 seed = 1
 
@@ -61,6 +65,28 @@ if model == "gaussian":
     theta_vect, samples_matrix = generate_gaussian_training_samples(n_theta=n_observations,
                                                                     size_iid_samples=10, seed=seed, mu_bounds=mu_bounds,
                                                                     sigma_bounds=sigma_bounds)
+
+elif model in ("two_moons", "slcp", "gaussian_linear_uniform", "lotka_volterra"):
+    import torch
+    from sbibm.tasks import get_task
+    torch.manual_seed(seed)
+    t = get_task(model)
+
+    samples_matrix = []
+    theta_vect = []
+
+    for i in range(1 + start_observation_index, 1 + start_observation_index + n_observations):
+        x_obs = t.get_observation(i)
+        true_param = t.get_true_parameters(i)
+
+        samples_matrix.append(x_obs)
+        theta_vect.append(true_param)
+
+    samples_matrix = torch.cat(samples_matrix, dim=0).detach().numpy()
+    theta_vect = torch.cat(theta_vect, dim=0).detach().numpy()
+
+
+
 elif model == "beta":
     alpha_bounds = [1, 3]
     beta_bounds = [1, 3]
@@ -117,6 +143,9 @@ elif "Lorenz95" in model:
                            n_timestep_per_time_unit=30, K=8 if model == "fullLorenz95smaller" else 40, name='lorenz', )
     theta_vect, samples_matrix = generate_training_samples_ABC_model(lorenz, n_observations, seed=seed)
 
+
+model_name = model
+
 for obs_index in range(start_observation_index, n_observations):
     print("Observation {}".format(obs_index + 1))
     if isinstance(samples_matrix, np.ndarray):
@@ -135,8 +164,8 @@ for obs_index in range(start_observation_index, n_observations):
     elif model == "MA2":
         logl = LogLike(ma2_log_lik_for_mcmc, x_obs)
 
-    if not "Lorenz95" in model:
-        if model == "gaussian":
+    if not "Lorenz95" in model_name:
+        if model_name == "gaussian":
             with pm.Model() as model:
                 mu = pm.Uniform('mu', mu_bounds[0], mu_bounds[1])
                 sigma = pm.Uniform('sigma', sigma_bounds[0], sigma_bounds[1])
@@ -146,6 +175,13 @@ for obs_index in range(start_observation_index, n_observations):
                 trace_true = pm.sample(n_samples_true_MCMC, tune=burnin_true_MCMC, cores=cores)
                 trace_true = np.concatenate((trace_true['mu'].reshape(-1, 1), trace_true['sigma'].reshape(-1, 1)),
                                             axis=1)
+                # trace_true = mu
+
+        elif model_name in ("two_moons", "slcp", "gaussian_linear_uniform", "lotka_volterra"):
+            from sbibm.tasks import get_task
+            t = get_task(model_name)
+            trace_true = t.get_reference_posterior_samples(obs_index + 1).detach().numpy()
+
         elif model == "beta":
             with pm.Model() as model:
                 alpha = pm.Uniform('alpha', alpha_bounds[0], alpha_bounds[1])

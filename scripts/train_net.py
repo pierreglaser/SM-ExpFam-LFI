@@ -57,8 +57,12 @@ use_MPI = args.use_MPI
 generate_data_only = args.generate_data_only
 save_net_at_each_epoch = args.save_net_at_each_epoch
 
+n_samples_training = args.n_samples_training
+n_samples_evaluation = args.n_samples_evaluation
+
 # checks
 if model not in (
+        "two_moons", "slcp", "gaussian_linear_uniform", "lotka_volterra",
         "gaussian", "beta", "gamma", "MA2", "AR2", "fullLorenz95",
         "fullLorenz95smaller") or technique not in (
         "SM", "SSM", "FP"):
@@ -72,6 +76,9 @@ else:
     print("{} model with {}.".format(model, technique))
 # set up the default root folder and other values
 default_root_folder = {"gaussian": "results/gaussian/",
+                       "two_moons": "results/two_moons/",
+                       "slcp": "results/slcp/",
+                       "gaussian_linear_uniform": "results/gaussian_linear_uniform/",
                        "gamma": "results/gamma/",
                        "beta": "results/beta/",
                        "AR2": "results/AR2/",
@@ -102,8 +109,6 @@ seed = 42
 cuda = True
 torch.set_num_threads(4)
 
-n_samples_training = 10 ** 4
-n_samples_evaluation = 10 ** 4
 
 save_net_flag = True
 lam = 0
@@ -149,6 +154,77 @@ if model == "gaussian":
                                                                               size_iid_samples=10,
                                                                               mu_bounds=mu_bounds,
                                                                               sigma_bounds=sigma_bounds)
+
+    __import__('pdb').set_trace()
+    np.save(datasets_folder + "theta_vect.npy", theta_vect)
+    np.save(datasets_folder + "samples_matrix.npy", samples_matrix)
+    np.save(datasets_folder + "theta_vect_test.npy", theta_vect_test)
+    np.save(datasets_folder + "samples_matrix_test.npy", samples_matrix_test)
+
+elif model in ("two_moons", "slcp", "gaussian_linear_uniform"):
+
+    start = time()
+    # generate training data
+
+    from sbibm.tasks import get_task
+    t = get_task(model)
+
+    theta_vect = t.get_prior()(n_samples_training)
+    theta_vect_test = t.get_prior()(n_samples_evaluation)
+
+    print(f"theta_vect.shape: {theta_vect.shape}")
+    print(f"theta_vect_test.shape: {theta_vect_test.shape}")
+
+    samples_matrix = t.get_simulator()(theta_vect)
+    samples_matrix_test = t.get_simulator()(theta_vect_test)
+
+    print(f"samples_matrix.shape: {samples_matrix.shape}")
+    print(f"samples_matrix_test.shape: {samples_matrix_test.shape}")
+
+    theta_vect = theta_vect.detach().numpy()
+    theta_vect_test = theta_vect_test.detach().numpy()
+    samples_matrix = samples_matrix.detach().numpy()
+    samples_matrix_test = samples_matrix_test.detach().numpy()
+
+    print("Data generation took {:.4f} seconds".format(time() - start))
+
+    scaler_data_FP = MinMaxScaler().fit(
+        samples_matrix.reshape(-1, samples_matrix.shape[
+            -1]))
+
+    lower_bound = upper_bound = None
+    scale_samples_flag = True
+    scale_parameters_flag = True
+
+
+    np.save(datasets_folder + "theta_vect.npy", theta_vect)
+    np.save(datasets_folder + "samples_matrix.npy", samples_matrix)
+    np.save(datasets_folder + "theta_vect_test.npy", theta_vect_test)
+    np.save(datasets_folder + "samples_matrix_test.npy", samples_matrix_test)
+
+elif model == "lotka_volterra":
+    assert load_train_data
+    theta_vect = np.load(datasets_folder + "theta_vect.npy", allow_pickle=True)
+    samples_matrix = np.load(datasets_folder + "samples_matrix.npy", allow_pickle=True)
+    theta_vect_test = np.load(datasets_folder + "theta_vect_test.npy", allow_pickle=True)
+    samples_matrix_test = np.load(datasets_folder + "samples_matrix_test.npy", allow_pickle=True)
+    print("Loaded data; {} training samples, {} test samples".format(theta_vect.shape[0], theta_vect_test.shape[0]))
+
+    scaler_data_FP = MinMaxScaler().fit(
+        samples_matrix.reshape(-1, samples_matrix.shape[
+            -1]))
+
+    lower_bound = np.array(20 * [0.])
+    upper_bound = None
+    scale_samples_flag = True
+    scale_parameters_flag = True
+
+
+    np.save(datasets_folder + "theta_vect.npy", theta_vect)
+    np.save(datasets_folder + "samples_matrix.npy", samples_matrix)
+    np.save(datasets_folder + "theta_vect_test.npy", theta_vect_test)
+    np.save(datasets_folder + "samples_matrix_test.npy", samples_matrix_test)
+
 
 elif model == "beta":
 
@@ -373,6 +449,54 @@ if model in ("beta", "gamma", "gaussian"):
     net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=nonlinearity())
     # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
     # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
+
+elif model == "two_moons":
+    nonlinearity = torch.nn.Softplus
+    # nonlinearity = torch.nn.Tanhshrink
+    # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_data_SM_architecture = createDefaultNNWithDerivatives(2, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
+    # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
+    net_theta_SM_architecture = createDefaultNN(2, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+                                                batch_norm_last_layer=batch_norm_last_layer,
+                                                affine_batch_norm=affine_batch_norm,
+                                                batch_norm_last_layer_momentum=momentum)
+    net_FP_architecture = createDefaultNN(2, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
+    # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
+
+elif model == "slcp":
+    nonlinearity = torch.nn.Softplus
+    # nonlinearity = torch.nn.Tanhshrink
+    # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_data_SM_architecture = createDefaultNNWithDerivatives(8, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
+    # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
+    net_theta_SM_architecture = createDefaultNN(5, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+                                                batch_norm_last_layer=batch_norm_last_layer,
+                                                affine_batch_norm=affine_batch_norm,
+                                                batch_norm_last_layer_momentum=momentum)
+    net_FP_architecture = createDefaultNN(8, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
+    # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
+
+elif model == "gaussian_linear_uniform":
+    nonlinearity = torch.nn.Softplus
+    # nonlinearity = torch.nn.Tanhshrink
+    # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_data_SM_architecture = createDefaultNNWithDerivatives(10, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
+    # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
+    net_theta_SM_architecture = createDefaultNN(10, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+                                                batch_norm_last_layer=batch_norm_last_layer,
+                                                affine_batch_norm=affine_batch_norm,
+                                                batch_norm_last_layer_momentum=momentum)
+    net_FP_architecture = createDefaultNN(10, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
+    # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
+
+
+
 
 elif model == "MA2":
     nonlinearity = torch.nn.Softplus

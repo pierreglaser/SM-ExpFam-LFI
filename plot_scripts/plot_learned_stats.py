@@ -44,11 +44,12 @@ affine_batch_norm = args.affine_bn
 FP = args.FP
 seed = args.seed
 
-if model not in ("gaussian", "beta", "gamma", "MA2", "AR2", "fullLorenz95", "fullLorenz95smaller"):
+if model not in ("gaussian", "two_moons", "beta", "gamma", "MA2", "AR2", "fullLorenz95", "fullLorenz95smaller"):
     raise NotImplementedError
 
 print("{} model.".format(model))
 default_root_folder = {"gaussian": "results/gaussian/",
+                       "two_moons": "results/two_moons/",
                        "gamma": "results/gamma/",
                        "beta": "results/beta/",
                        "AR2": "results/AR2/",
@@ -97,6 +98,16 @@ elif model == "gaussian":
                                                                     size_iid_samples=10, seed=seed, mu_bounds=mu_bounds,
                                                                     sigma_bounds=sigma_bounds)
     true_suff_stat_test = TrueSummariesComputationGaussian()(samples_matrix.reshape(-1, 10)).numpy()
+
+elif model == "two_moons":
+    mu_bounds = [-10, 10]
+    sigma_bounds = [1, 10]
+
+    theta_vect, samples_matrix = generate_gaussian_training_samples(n_theta=n_observations,
+                                                                    size_iid_samples=10, seed=seed, mu_bounds=mu_bounds,
+                                                                    sigma_bounds=sigma_bounds)
+    true_suff_stat_test = TrueSummariesComputationGaussian()(samples_matrix.reshape(-1, 10)).numpy()
+
 
 elif model == "MA2":
     arma_size = 100
