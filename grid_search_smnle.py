@@ -9,17 +9,16 @@ TASKS = (
     "gaussian_linear_uniform",
     "slcp",
     "lotka_volterra",
-)[:1]
+)
 
 # talk about neural net architecture
 
-OBSERVATIONS = list(range(1, 11))[:1]
+OBSERVATIONS = list(range(1, 11))
 
-LRS = [0.01, 0.005, 0.001][:1]
+LRS = [0.01, 0.005, 0.001]
 
 if __name__ == "__main__":
 
-    grid = list(itertools.product(TASKS, OBSERVATIONS, LRS))
 
     close_after_simulation = True
 
@@ -46,19 +45,32 @@ if __name__ == "__main__":
                 "dashboard_address": ":8787",
                 "allowed_failures": 10,
             },
-            job_cpu=1,
-            walltime="2:0:0",
+            job_cpu=8,
+            walltime="24:0:0",
         )
+        print(cluster.job_script())
+        cluster.scale(50)
     else:
         from dask.distributed import LocalCluster
         cluster = LocalCluster(n_workers=4)
 
     from distributed import Client
 
+    print('testing cluster')
     client = Client(cluster)
+    print(client.submit(lambda x: x + 1, 10).result())
+    print('cluster is working')
 
     futures = []
     args = []
+
+    grid = list(
+        itertools.product(
+            TASKS,
+            OBSERVATIONS,
+            LRS
+        )
+    )
 
     for arg in grid:
         task, num_observation, lr = arg
@@ -68,10 +80,10 @@ if __name__ == "__main__":
             num_observation=num_observation,
             SM_lr=lr,
             SM_lr_theta=lr,
-            # epochs=10,
-            # mcmc_num_chains=1,
-            # mcmc_num_warmup_steps=10,
-            # num_posterior_samples=10,
+            epochs=500,
+            mcmc_num_chains=50,
+            mcmc_num_warmup_steps=1000,
+            num_posterior_samples=10000,
         )
         futures.append(fut)
         args.append(arg)
@@ -82,5 +94,12 @@ if __name__ == "__main__":
     results = [fut.result() for fut in futures]
     print(dict(zip(args, results)))
 
+    with open("results.pkl", "wb") as f:
+        import pickle
+        pickle.dump(zip(args, results), f)
+
     client.shutdown()
     cluster.close()
+
+    import time
+    time.sleep(10)

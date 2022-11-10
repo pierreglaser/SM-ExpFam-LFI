@@ -37,6 +37,12 @@ if [ "$(uname)" = "Darwin" ]; then
 
 elif [ "$(uname)" = "Linux" ]; then
     echo "linux"
+    conda install -y -c conda-forge mpi4py openmpi openblas
+    conda install -y -c conda-forge cmake=3.19 eigen ninja
+    pip install cmaketools
+
+    conda install -y -c conda-forge scipy=1.9.3 numpy=1.20.3 scikit-learn matplotlib pandas seaborn
+    pip install pyabcranger
     conda install -y -c conda-forge scipy numpy scikit-learn matplotlib pandas seaborn
 
     conda install -y pytorch -c pytorch
@@ -50,9 +56,14 @@ elif [ "$(uname)" = "Linux" ]; then
     pip install abcpy
 
     conda install pymc3
+
+    # install scipy==1.7.3 after having isnstalled sbi (otherwise sbi would
+    # force reinstallation of scipy>= 1.9.3, making SM-ExpFam-LFI fail)
+    conda install -y scipy=1.7.3
+
 fi
 
 
-pip install ./density_utils/
-pip install ./smnle
-pip install ./sbi_ebm
+# pip install ./density_utils/
+# pip install ./smnle
+# pip install ./sbi_ebm
