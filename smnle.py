@@ -35,6 +35,9 @@ from sbi_ebm.samplers.kernels.rwmh import RWConfig, RWKernel, RWKernelFactory
 from sbi_ebm.samplers.kernels.savm import SAVMConfig, SAVMKernelFactory
 from sbi_ebm.sbibm.jax_torch_interop import make_jax_likelihood
 from sbi_ebm.sbibm.pyro_to_numpyro import convert_dist, convert_transform
+from sbibm.metrics.c2st import c2st
+from sbibm.metrics.mmd import mmd
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import MinMaxScaler
 from torch import nn
 from torch.distributions.transformed_distribution import \
@@ -56,21 +59,10 @@ from src.utils_gamma_example import generate_gamma_training_samples
 from src.utils_gaussian_example import generate_gaussian_training_samples
 from src.utils_Lorenz95_example import StochLorenz95
 
-# for some reason it does not see my files if I don't put this
 sys.path.append(os.getcwd())
 
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
-
-# start_observation_index = args.start_observation
-# n_observations = args.n_observations
-# results_folder = args.root_folder
-
-# n_samples_true_MCMC = 20000
-# burnin_true_MCMC = 20000
-# cores = 1
-
-sys.path.append(os.getcwd())
 
 
 def smnle(
@@ -101,6 +93,8 @@ def smnle(
     mcmc_num_chains=50,
     mcmc_num_warmup_steps=5000,
     mcmc_num_inner_steps=200,
+    return_posterior_samples=False,
+    use_orig_mcmc_impl=False,
 ):
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -113,6 +107,7 @@ def smnle(
     if model == "lotka_volterra":
         # simulating lotka volterra samples requires julia. use some cached samples to allow users to
         # experiment with amortized inference on this model without having to install julia + compile a sysimage
+        p = t.get_prior()
         prior = t.get_prior_dist()
         all_theta_vect = np.load("theta_vect_lv.npy")
         all_samples_matrix = np.load("samples_matrix_lv.npy")
@@ -127,14 +122,17 @@ def smnle(
         num_samples = all_theta_vect.shape[0]
         assert num_samples == all_samples_matrix.shape[0]
 
-
         assert num_samples > n_samples_training + n_samples_evaluation
 
         theta_vect = all_theta_vect[:n_samples_training]
-        theta_vect_test = all_theta_vect[n_samples_training:n_samples_training + n_samples_evaluation]
+        theta_vect_test = all_theta_vect[
+            n_samples_training: n_samples_training + n_samples_evaluation
+        ]
 
         samples_matrix = all_samples_matrix[:n_samples_training]
-        samples_matrix_test = all_samples_matrix[n_samples_training:n_samples_training + n_samples_evaluation]
+        samples_matrix_test = all_samples_matrix[
+            n_samples_training: n_samples_training + n_samples_evaluation
+        ]
 
         lower_bound = upper_bound = None
     else:
@@ -152,40 +150,6 @@ def smnle(
 
         samples_matrix = s(theta_vect)
         samples_matrix_test = s(theta_vect_test)
-
-    # print(theta_vect.min(0))
-    # print(theta_vect.max(0))
-
-    # mu_bounds = [-10, 10]
-    # sigma_bounds = [1, 10]
-    # lower_bounds = np.array([mu_bounds[0], sigma_bounds[0]])
-    # upper_bounds = np.array([mu_bounds[1], sigma_bounds[1]])
-
-    # theta_vect, samples_matrix = generate_gaussian_training_samples(
-    #     n_theta=n_samples_training,
-    #     size_iid_samples=10,
-    #     seed=seed,
-    #     mu_bounds=mu_bounds,
-    #     sigma_bounds=sigma_bounds,
-    # )
-    #
-    # lower_bound = upper_bound = None
-    #
-    # # generate test data for using early stopping in learning the statistics with SM
-    # theta_vect_test, samples_matrix_test = generate_gaussian_training_samples(
-    #     n_theta=n_samples_evaluation,
-    #     size_iid_samples=10,
-    #     mu_bounds=mu_bounds,
-    #     sigma_bounds=sigma_bounds,
-    # )
-
-    # if generate_data_only:
-    #     print("Generating data has finished")
-    #     exit()
-
-    # define network architectures:
-    # nonlinearity = torch.nn.Tanhshrink
-    # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
 
     if model == "gaussian":
         net_data_SM_architecture = createDefaultNNWithDerivatives(
@@ -321,9 +285,6 @@ def smnle(
         else samples_matrix_test
     )
 
-    from sklearn.base import BaseEstimator, TransformerMixin
-    from sklearn.preprocessing import MinMaxScaler
-
     # class IdentityTransformer(BaseEstimator, TransformerMixin):
     #     def __init__(self):
     #         pass
@@ -343,16 +304,31 @@ def smnle(
             scale=torch.from_numpy(min_max_scaler.scale_),
         )
 
-    theta_scaler = MinMaxScaler().fit(theta_vect)
-    # theta_scaler = IdentityTransformer()
+    if not use_orig_mcmc_impl:
+        # perform the scaling step oursevles when using own MCMC implementations, so that we know which are these objects and
+        # we can transform them into jax functions.
+        theta_scaler = MinMaxScaler().fit(theta_vect)
+        # theta_scaler = IdentityTransformer()
 
-    theta_vect_transformed = theta_scaler.transform(theta_vect)
-    theta_vect_test_transformed = theta_scaler.transform(theta_vect_test)
+        theta_vect_transformed = theta_scaler.transform(theta_vect)
+        theta_vect_test_transformed = theta_scaler.transform(theta_vect_test)
 
-    samples_scaler = MinMaxScaler().fit(samples_matrix)
-    # samples_scaler = IdentityTransformer()
-    samples_matrix_transformed = samples_scaler.transform(samples_matrix)
-    samples_matrix_test_transformed = samples_scaler.transform(samples_matrix_test)
+        samples_scaler = MinMaxScaler().fit(samples_matrix)
+        # samples_scaler = IdentityTransformer()
+        samples_matrix_transformed = samples_scaler.transform(samples_matrix)
+        samples_matrix_test_transformed = samples_scaler.transform(samples_matrix_test)
+
+        scale_parameters = scale_samples = False
+
+    else:
+        theta_scaler = samples_scaler = None
+        theta_vect_transformed = theta_vect
+        theta_vect_test_transformed = theta_vect_test
+
+        samples_matrix_transformed = samples_matrix
+        samples_matrix_test_transformed = samples_matrix_test
+
+        scale_parameters = scale_samples = True
 
     statistics_learning = ExpFamStatistics(
         # backend and model are not used
@@ -365,8 +341,8 @@ def smnle(
         simulations=samples_matrix_transformed,
         parameters_val=theta_vect_test_transformed,
         simulations_val=samples_matrix_test_transformed,
-        scale_samples=False,
-        scale_parameters=False,
+        scale_samples=scale_samples,
+        scale_parameters=scale_parameters,
         lower_bound_simulations=lower_bound,
         upper_bound_simulations=upper_bound,
         sliced=technique == "SSM",
@@ -390,36 +366,32 @@ def smnle(
     loss_list = statistics_learning.train_losses
     test_loss_list = statistics_learning.test_losses
 
-    scaler_data = statistics_learning.get_simulations_scaler()
-    scaler_theta = statistics_learning.get_parameters_scaler()
+    # scaler_data = statistics_learning.get_simulations_scaler()
+    # scaler_theta = statistics_learning.get_parameters_scaler()
 
     # save_net(nets_folder + "net_theta_SM.pth", net_theta_SM)
     # save_net(nets_folder + "net_data_SM.pth", net_data_SM)
     # pickle.dump(scaler_data, open(nets_folder + "scaler_data_SM.pkl", "wb"))
     # pickle.dump(scaler_theta, open(nets_folder + "scaler_theta_SM.pkl", "wb"))
 
-    scaler_data_SM = scaler_data
-    scaler_theta_SM = scaler_theta
+    # scaler_data_SM = scaler_data
+    # scaler_theta_SM = scaler_theta
 
-    seed = 1
     np.random.seed(seed)
 
-    use_orig_mcmc_impl = False
     if use_orig_mcmc_impl:
-        initial_theta_exchange_MCMC = np.array([0, 5.5])
-        proposal_size_exchange_MCMC = 2 * np.array([1, 0.5])
+        theta_scaler = statistics_learning.get_parameters_scaler()
+        data_scaler = statistics_learning.get_simulations_scaler()
 
-        theta_dim = 2
-        param_names = [r"$\mu$", r"$\sigma$"]
+        initial_theta_exchange_MCMC = p()[0].detach().numpy()
+        proposal_size_exchange_MCMC = 2 * np.array([0.1])
 
         print(f"\nPerforming exchange MCMC inference with {technique}.")
 
-        start = time()
-
-        obs_index = 1
-
         # model = args.model
-        n_samples = 1000
+        n_samples = num_posterior_samples
+
+        # XXX: some parameters are hardcoded in this branch.
         burnin_exchange_MCMC = 1000
         aux_MCMC_inner_steps_exchange_MCMC = 100
         aux_MCMC_proposal_size_exchange_MCMC = 0.1
@@ -430,24 +402,25 @@ def smnle(
         propose_new_theta_exchange_MCMC = "transformation"
         bridging_exch_MCMC = 0
 
-        mu_bounds = [-10, 10]
-        sigma_bounds = [1, 10]
-        lower_bounds = np.array([mu_bounds[0], sigma_bounds[0]])
-        upper_bounds = np.array([mu_bounds[1], sigma_bounds[1]])
+        assert isinstance(prior, pdist.Independent)
+        assert isinstance(prior.base_dist, pdist.Uniform)
+        lower_bounds = prior.base_dist.low.detach().numpy()
+        upper_bounds = prior.base_dist.high.detach().numpy()
+
         trace_exchange = exchange_MCMC_with_SM_statistics(
             x_obs,
             initial_theta_exchange_MCMC,
             lambda x: uniform_prior_theta(x, lower_bounds, upper_bounds),
             net_data_SM,
             net_theta_SM,
-            scaler_data_SM,
-            scaler_theta_SM,
+            data_scaler,
+            theta_scaler,
             propose_new_theta_exchange_MCMC,
             T=n_samples,
             burn_in=burnin_exchange_MCMC,
             tuning_window_size=tuning_window_exchange_MCMC,
             aux_MCMC_inner_steps=aux_MCMC_inner_steps_exchange_MCMC,
-            aux_MCMC_proposal_size=aux_MCMC_proposal_size_exchange_MCMC,
+            aux_MCMC_proposal_size=aux_MCMC_proposal_size_exchange_MCMC,  # type: ignore
             K=bridging_exch_MCMC,
             seed=seed,
             debug_level=debug_level,
@@ -456,27 +429,13 @@ def smnle(
             sigma=proposal_size_exchange_MCMC,
         )
 
-        trace_exchange_burned_in = trace_exchange[burnin_exchange_MCMC:]
-        np.save("./exchange_mcmc_trace{}".format(obs_index), trace_exchange_burned_in)
-
+        posterior_samples_numpy = trace_exchange[burnin_exchange_MCMC:]
     else:
-        # smnle_theta_scaler = statistics_learning.get_parameters_scaler()
-        # smnle_samples_scaler = statistics_learning.get_simulations_scaler()
-        # assert smnle_theta_scaler is not None
-        # assert smnle_samples_scaler is not None
+        assert theta_scaler is not None
+        assert samples_scaler is not None
 
         theta_min_max_affine_transform = get_transform(theta_scaler)
         samples_min_max_affine_transform = get_transform(samples_scaler)
-
-        # theta_min_max_affine_transform = pAffineTransform(
-        #     loc=torch.from_numpy(smnle_theta_scaler.min_),
-        #     scale=torch.from_numpy(smnle_theta_scaler.scale_),
-        # )
-        #
-        # samples_min_max_affine_transform = pAffineTransform(
-        #     loc=torch.from_numpy(smnle_samples_scaler.min_),
-        #     scale=torch.from_numpy(smnle_samples_scaler.scale_),
-        # )
 
         jax_log_likelihood = make_jax_likelihood(net_data_SM, net_theta_SM)
         transformed_prior = TransformedDistribution(
@@ -518,11 +477,9 @@ def smnle(
         )
 
         alg = config.build_algorithm(jax_posterior_log_prob)
-        # alg = alg.init_from_particles(theta0_vals)
         key = random.PRNGKey(0)
         key, subkey = random.split(key)
 
-        # initial_theta_exchange_MCMC = np.array([[0, 5.5] for _ in range(alg.config.num_chains)])
         alg = alg.init(subkey, transformed_jax_prior)
 
         key, subkey = random.split(key)
@@ -534,23 +491,35 @@ def smnle(
         )
 
         posterior_samples_numpy = np.array(posterior_samples_torch)
-        # transform back
-        # posterior_samples_numpy = theta_min_max_affine_transform.inv(posterior_samples_numpy)
 
-        np.save("./exchange_mcmc_trace{}".format(1), posterior_samples_numpy)
+    reference_posterior_samples = t.get_reference_posterior_samples(num_observation)
 
+    eval_results = (
+        # posterior_samples_numpy,
+        {
+            "c2st": c2st(
+                torch.from_numpy(posterior_samples_numpy), reference_posterior_samples
+            ),
+            "mmd": mmd(
+                torch.from_numpy(posterior_samples_numpy), reference_posterior_samples
+            ),
+        },
+    )
 
-
-        reference_posterior_samples = t.get_reference_posterior_samples(num_observation)
-        from sbibm.metrics.c2st import c2st
-        from sbibm.metrics.mmd import mmd
-
-        return (
-            # posterior_samples_numpy,
-            {'c2st': c2st(torch.from_numpy(posterior_samples_numpy), reference_posterior_samples),
-             'mmd': mmd(torch.from_numpy(posterior_samples_numpy), reference_posterior_samples) },
-        )
+    if return_posterior_samples:
+        return eval_results, posterior_samples_numpy
+    else:
+        return eval_results
 
 
 if __name__ == "__main__":
-    print(smnle("two_moons", num_observation=2))
+    num_observation = 2
+    eval_results, posterior_samples = smnle(
+        "two_moons",
+        num_observation=num_observation,
+        return_posterior_samples=True,
+        use_orig_mcmc_impl=True,
+        epochs=200,
+        num_posterior_samples=1000,
+    )
+    np.save("./exchange_mcmc_trace{}".format(num_observation), posterior_samples)
