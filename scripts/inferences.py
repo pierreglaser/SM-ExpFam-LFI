@@ -176,7 +176,7 @@ if model == "two_moons":
     upper_bounds = np.array([1., 1.])
 
     initial_theta_exchange_MCMC = np.array([0., 0.])
-    proposal_size_exchange_MCMC = 2 * np.array([1., 1.])
+    proposal_size_exchange_MCMC = 2 * np.array([0.1, 0.1])
     theta_dim = 2
     param_names = [r"$\theta_1$", r"$\theta_2$"]
 
@@ -200,8 +200,8 @@ if model == "two_moons":
 
 elif model == "slcp":
 
-    lower_bounds = np.array([-3., -3., -.3, -.3, -3.])
-    upper_bounds = np.array([3., 3., .3, .3, 3.])
+    lower_bounds = np.array([-3., -3., -3., -3., -3.])
+    upper_bounds = np.array([3., 3., 3., 3., 3.])
 
     initial_theta_exchange_MCMC = np.array([0., 0., 0., 0., 0.])
     proposal_size_exchange_MCMC = 2 * np.array([0.1, 0.1, 0.1, 0.1, 0.1])
@@ -465,14 +465,14 @@ elif model == "two_moons":
     nonlinearity = torch.nn.Softplus
     # nonlinearity = torch.nn.Tanhshrink
     # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
-    net_data_SM_architecture = createDefaultNNWithDerivatives(2, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    net_data_SM_architecture = createDefaultNNWithDerivatives(2, 50, [50, 50, 50, 50], nonlinearity=nonlinearity)
     # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
     # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
-    net_theta_SM_architecture = createDefaultNN(2, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+    net_theta_SM_architecture = createDefaultNN(2, 49, [50, 50, 50, 50], nonlinearity=nonlinearity(),
                                                 batch_norm_last_layer=batch_norm_last_layer,
                                                 affine_batch_norm=affine_batch_norm,
                                                 )
-    net_FP_architecture = createDefaultNN(10, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_FP_architecture = createDefaultNN(10, 49, [50, 50, 50, 20], nonlinearity=nonlinearity())
     # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
     # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
 
@@ -480,14 +480,14 @@ elif model == "slcp":
     nonlinearity = torch.nn.Softplus
     # nonlinearity = torch.nn.Tanhshrink
     # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
-    net_data_SM_architecture = createDefaultNNWithDerivatives(8, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    net_data_SM_architecture = createDefaultNNWithDerivatives(8, 50, [50, 50, 50, 50], nonlinearity=nonlinearity)
     # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
     # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
-    net_theta_SM_architecture = createDefaultNN(5, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+    net_theta_SM_architecture = createDefaultNN(5, 49, [50, 50, 50, 50], nonlinearity=nonlinearity(),
                                                 batch_norm_last_layer=batch_norm_last_layer,
                                                 affine_batch_norm=affine_batch_norm,
                                                 )
-    net_FP_architecture = createDefaultNN(8, 49, [30, 50, 50, 20], nonlinearity=nonlinearity())
+    net_FP_architecture = createDefaultNN(8, 49, [50, 50, 50, 50], nonlinearity=nonlinearity())
     # net_FP_architecture = createDefaultNN(10, 2, [30, 50, 50, 20], nonlinearity=torch.nn.ReLU())
     # net_FP_architecture = createDefaultNN(10, 2, [15, 15, 5], nonlinearity=nonlinearity())
 
@@ -495,10 +495,10 @@ elif model == "gaussian_linear_uniform":
     nonlinearity = torch.nn.Softplus
     # nonlinearity = torch.nn.Tanhshrink
     # net_data_SM_architecture = createDefaultNN(10, 3, [30, 50, 50, 20], nonlinearity=nonlinearity())
-    net_data_SM_architecture = createDefaultNNWithDerivatives(10, 50, [30, 50, 50, 20], nonlinearity=nonlinearity)
+    net_data_SM_architecture = createDefaultNNWithDerivatives(10, 50, [50, 50, 50, 50], nonlinearity=nonlinearity)
     # net_data_SM_architecture = createDefaultNN(10, 3, [15, 15, 5], nonlinearity=nonlinearity())
     # net_theta_SM_architecture = createDefaultNN(2, 2, [5, 5], nonlinearity=nonlinearity())
-    net_theta_SM_architecture = createDefaultNN(10, 49, [15, 30, 30, 15], nonlinearity=nonlinearity(),
+    net_theta_SM_architecture = createDefaultNN(10, 49, [50, 50, 50, 50], nonlinearity=nonlinearity(),
                                                 batch_norm_last_layer=batch_norm_last_layer,
                                                 affine_batch_norm=affine_batch_norm,
                                                 )

@@ -35,13 +35,12 @@ mkdir -p results/slcp/PMC-SL
 
 # GENERATE OBSERVATIONS AND EXACT POSTERIORS
 
-n_observations=1
-n_observations= 9
-# python3 scripts/generate_obs.py slcp --n_observations $n_observations
+n_observations=2
+python3 scripts/generate_obs.py slcp --n_observations $n_observations
 
 # TRAIN THE NNs
-python3 scripts/train_net.py SSM slcp --nets_folder net-SSM --epochs 1000 --lr_data 0.01 --lr_theta 0.01 \
-    --update --bn_mom 0.9 --epochs_before_early_stopping 1000 --epochs_test_interval 10 --save_train_data
+python3 scripts/train_net.py SSM slcp --nets_folder net-SSM --epochs 500 --lr_data 0.01 --lr_theta 0.01 \
+    --update --bn_mom 0.9 --epochs_before_early_stopping 200 --epochs_test_interval 10 --save_train_data
 
 # python3 plot_scripts/plot_learned_stats.py slcp --nets_folder net-SSM --no_bn --n_obs 1000
 # python3 plot_scripts/plot_learned_nat_params.py slcp --nets_folder net-SSM --n_obs 1000
@@ -68,8 +67,8 @@ inn_steps_values=( 100 )
 METHODS=( SSM )
 prop_size=0.1
 K=0  # bridging steps
-burnin=1000
-n_samples=1000
+burnin=10000
+n_samples=10000
 tune_window=100
 
 for ((j=0;j<${#METHODS[@]};++j)); do
