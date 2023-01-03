@@ -98,6 +98,7 @@ def smnle(
 ):
     torch.manual_seed(seed)
     np.random.seed(seed)
+    import time
 
     # from gaussian import GaussianTask
     from sbibm.tasks import get_task
@@ -330,6 +331,7 @@ def smnle(
 
         scale_parameters = scale_samples = True
 
+    t0_training = time.time()
     statistics_learning = ExpFamStatistics(
         # backend and model are not used
         model=None,
@@ -362,6 +364,7 @@ def smnle(
         lam=lam,
         batch_norm_update_before_test=update_batchnorm_running_means_before_eval,
     )
+    time_training = time.time() - t0_training
 
     loss_list = statistics_learning.train_losses
     test_loss_list = statistics_learning.test_losses
@@ -378,6 +381,8 @@ def smnle(
     # scaler_theta_SM = scaler_theta
 
     np.random.seed(seed)
+
+    t0_inference = time.time()
 
     if use_orig_mcmc_impl:
         theta_scaler = statistics_learning.get_parameters_scaler()
@@ -493,6 +498,7 @@ def smnle(
         posterior_samples_numpy = np.array(posterior_samples_torch)
 
     reference_posterior_samples = t.get_reference_posterior_samples(num_observation)
+    time_inference = time.time() - t0_inference
 
     eval_results = (
         # posterior_samples_numpy,
@@ -509,7 +515,7 @@ def smnle(
     if return_posterior_samples:
         return eval_results, posterior_samples_numpy
     else:
-        return eval_results
+        return eval_results, {"training": time_training, "inference": time_inference}
 
 
 if __name__ == "__main__":
