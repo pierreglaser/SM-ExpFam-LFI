@@ -513,19 +513,30 @@ def smnle(
     )
 
     if return_posterior_samples:
-        return eval_results, posterior_samples_numpy
+        return eval_results, {"training": time_training, "inference": time_inference}, posterior_samples_numpy
     else:
         return eval_results, {"training": time_training, "inference": time_inference}
 
 
 if __name__ == "__main__":
     num_observation = 2
-    eval_results, posterior_samples = smnle(
+    eval_results, _, posterior_samples = smnle(
         "two_moons",
+        # technique="SM",
+        technique="SSM",
         num_observation=num_observation,
         return_posterior_samples=True,
-        use_orig_mcmc_impl=True,
-        epochs=200,
+        use_orig_mcmc_impl=False,
+        epochs=500,
         num_posterior_samples=1000,
+        batch_size=1000,
+        n_samples_training=1000,
+        mcmc_num_warmup_steps=100,
+        cuda=True,
     )
-    np.save("./exchange_mcmc_trace{}".format(num_observation), posterior_samples)
+
+    import pickle
+    with open('posterior_samples.pkl', 'wb') as f:
+        pickle.dump(posterior_samples, f)
+
+    # np.save("./exchange_mcmc_trace{}".format(num_observation), posterior_samples)
