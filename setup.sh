@@ -37,7 +37,7 @@ if [ "$(uname)" = "Darwin" ]; then
 
 elif [ "$(uname)" = "Linux" ]; then
     echo "linux"
-    conda install -y -c conda-forge mpi4py openmpi openblas
+    conda install -y -c conda-forge mpi4py openblas
     conda install -y -c conda-forge cmake=3.19 eigen ninja
     pip install cmaketools
 
@@ -63,7 +63,4 @@ elif [ "$(uname)" = "Linux" ]; then
 
 fi
 
-
-# pip install ./density_utils/
-# pip install ./smnle
-# pip install ./sbi_ebm
+pip install -e ./vendor/sbi_ebm
