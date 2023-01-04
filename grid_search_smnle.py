@@ -13,15 +13,13 @@ TASKS = (
     "gaussian_linear_uniform",
     "slcp",
     "lotka_volterra",
-)[1:2]
+)
 
-# talk about neural net architecture
+OBSERVATIONS = list(range(1, 11))[:5]
 
-OBSERVATIONS = list(range(1, 11))[:1]
+LRS = [0.01, 0.005, 0.001]
 
-LRS = [0.01, 0.001][1:]
-
-NUM_SAMPLES = [1000, 10000, 100000][1:]
+NUM_SAMPLES = [1000, 10000, 100000]
 
 if __name__ == "__main__":
 
@@ -128,7 +126,7 @@ if __name__ == "__main__":
 
         results[arg] = result
 
-        with open("results_rec.pkl", "wb") as f:
+        with open("results.pkl", "wb") as f:
             import pickle
             pickle.dump(results, f)
 
